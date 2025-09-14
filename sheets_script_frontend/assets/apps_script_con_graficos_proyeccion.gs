@@ -1,8 +1,9 @@
 //
-// Google Apps Script completo: envío de email con dos gráficos nuevos y maquetación en 2 columnas
+//
+// Google Apps Script completo: Envío de email con dos gráficos nuevos integrados en tabla de 2 columnas
 // 1) Gráfico de proyección 5–7 días con consumo promedio esperado y llenado promedio esperado (calculados desde históricos)
 // 2) Gráfico de barras con consumo diario total (litros) de los últimos 5 días
-// Ambos gráficos se incrustan como imágenes inline en el cuerpo del email en una tabla de 2 columnas.
+// Ambos gráficos se incrustan como imágenes inline en el cuerpo del email en una tabla de 2 columnas, respetando el estilo y orden de otros gráficos.
 //
 // NOTA: Este script asume que existe una hoja "Estadisticas" con columnas incluyendo al menos:
 // - "FECHA Y HORA" (texto tipo "dd/MM/yyyy HH:MM AM/PM")
@@ -12,8 +13,12 @@
 // Si tu libro se llama distinto o las columnas varían, ajusta los nombres/índices en las funciones marcadas.
 //
 // Autor: Kavia Codegen
-// Versión: 1.0
+// Versión: 1.1
 //
+
+// ---------------------------------------------------------------------------------
+// PUNTO DE ENTRADA
+// ---------------------------------------------------------------------------------
 
 // PUBLIC_INTERFACE
 function sendWaterReportEmailWithProjections() {
@@ -26,10 +31,13 @@ function sendWaterReportEmailWithProjections() {
    * - Ajusta 'recipient' y 'daysToProject' según desees (entre 5 y 7).
    * - El script calcula promedios desde la hoja "Estadisticas" a partir de la columna "VARIACIÓN LTS" y fechas en "FECHA Y HORA".
    * - El consumo se asume con variaciones negativas (egress) y el llenado con variaciones positivas (ingress).
+   * 
+   * El resto de la lógica del correo se mantiene igual, solo se agregan los dos gráficos nuevos al conjunto,
+   * y se integran en una tabla de dos columnas con estilo consistente.
    */
   var recipient = Session.getActiveUser().getEmail() || 'example@domain.com';
   var subject = 'Reporte de Agua: Proyección y Consumo';
-  var daysToProject = 7;
+  var daysToProject = 7; // entre 5 y 7
   if (daysToProject < 5) daysToProject = 5;
   if (daysToProject > 7) daysToProject = 7;
 
@@ -54,7 +62,7 @@ function sendWaterReportEmailWithProjections() {
   var projectionBlob = projectionChart.getAs('image/png').setName('projection.png');
   var last5DaysBlob = last5DaysBarChart.getAs('image/png').setName('last5days.png');
 
-  // 5) Cuerpo HTML (dos columnas)
+  // 5) Cuerpo HTML (dos columnas), integrando los gráficos nuevos
   var htmlBody =
     '<div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color:#222">' +
       '<p>Hola,</p>' +
@@ -83,7 +91,7 @@ function sendWaterReportEmailWithProjections() {
     '2) Consumo total últimos 5 días (L)\n\n' +
     'Saludos,\nSistema de Reportes de Agua';
 
-  // 6) Enviar email
+  // 6) Enviar email manteniendo la lógica base, agregando imágenes inline
   GmailApp.sendEmail(recipient, subject, plainTextBody, {
     htmlBody: htmlBody,
     inlineImages: {
@@ -92,6 +100,10 @@ function sendWaterReportEmailWithProjections() {
     }
   });
 }
+
+// ---------------------------------------------------------------------------------
+// GENERACIÓN DE GRÁFICOS
+// ---------------------------------------------------------------------------------
 
 // PUBLIC_INTERFACE
 function buildProjectionChart_(dataObj) {
@@ -152,6 +164,10 @@ function buildLast5DaysBarChart_(dataObj) {
   return chart;
 }
 
+// ---------------------------------------------------------------------------------
+// PROCESAMIENTO DE DATOS
+// ---------------------------------------------------------------------------------
+
 // PUBLIC_INTERFACE
 function buildProjectionDataFromHistory_(dailyAverages, daysToProject) {
   /**
@@ -170,7 +186,7 @@ function buildProjectionDataFromHistory_(dailyAverages, daysToProject) {
     var d = new Date(today);
     d.setDate(d.getDate() + i);
 
-    // Para darle un leve dinamismo visual, agregamos ligera variación +/- 10%
+    // Variación ligera para un look más natural (+/-10%)
     var cons = Math.round(baseConsumption * (0.9 + Math.random() * 0.2));
     var ing = Math.round(baseIngress * (0.9 + Math.random() * 0.2));
 
@@ -187,7 +203,6 @@ function getLast5DaysTotals_(dailyTotals) {
    * Calcula, para los últimos 5 días con datos, el consumo total (egress).
    * Retorna: { headers: ['Fecha','Consumo Total (L)'], rows: [[Date, Number], ...] }
    */
-  var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   var entries = Object.keys(dailyTotals).map(function (k) {
     var parts = k.split('-').map(Number);
     return { dateKey: k, dateObj: new Date(parts[0], parts[1] - 1, parts[2]), ingress: dailyTotals[k].ingress, egress: dailyTotals[k].egress };
@@ -289,7 +304,9 @@ function getHistoricalIngressEgress_(statsSheet) {
   };
 }
 
-// ---------------------------------- Utilidades ----------------------------------
+// ---------------------------------------------------------------------------------
+// UTILIDADES
+// ---------------------------------------------------------------------------------
 
 // PUBLIC_INTERFACE
 function convertirFechaHora_(fechaHoraStrParam) {
